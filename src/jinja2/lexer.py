@@ -29,6 +29,33 @@ newline_re = re.compile(r"(\r\n|\r|\n)")
 string_re = re.compile(
     r"('([^'\\]*(?:\\.[^'\\]*)*)'" r'|"([^"\\]*(?:\\.[^"\\]*)*)")', re.S
 )
+
+
+def _has_unescaped_quote(source: str, pos: int) -> bool:
+    """Check whether a quoted string has an unescaped closing quote."""
+    if pos >= len(source) or source[pos] not in ("'", '"'):
+        return False
+
+    quote = source[pos]
+    search_pos = pos + 1
+
+    while True:
+        quote_pos = source.find(quote, search_pos)
+
+        if quote_pos == -1:
+            return False
+
+        slash_start = quote_pos
+
+        while slash_start > pos + 1 and source[slash_start - 1] == "\\":
+            slash_start -= 1
+
+        if (quote_pos - slash_start) % 2 == 0:
+            return True
+
+        search_pos = quote_pos + 1
+
+
 integer_re = re.compile(
     r"""
     (
@@ -703,6 +730,9 @@ class Lexer:
         while True:
             # tokenizer loop
             for regex, tokens, new_state in statetokens:
+                if tokens == TOKEN_STRING and not _has_unescaped_quote(source, pos):
+                    continue
+
                 m = regex.match(source, pos)
 
                 # if no match we try again with the next rule

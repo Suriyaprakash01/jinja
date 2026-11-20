@@ -93,7 +93,27 @@ class TestLexer:
         for char in "\0", "\u2668", "\xe4", "\t", "\r", "\n":
             tmpl = env.from_string(f"{{{{ {char!r} }}}}")
             assert tmpl.render() == char
+
         assert env.from_string('{{ "\N{HOT SPRINGS}" }}').render() == "\u2668"
+
+    def test_unclosed_string_with_many_escapes(self, env):
+        source = "'" + ("\\a" + "b" * 100) * 100 + "c"
+
+        with pytest.raises(TemplateSyntaxError):
+            list(env.lexer.tokenize("{{ " + source + " }}"))
+
+    def test_string_quote_escape_parity(self, env):
+        # One backslash: the single quote is escaped.
+        assert env.from_string(r"""{{ 'foo\'bar' }}""").render() == "foo'bar"
+
+        # Two backslashes: the single quote closes the string.
+        assert env.from_string(r"""{{ 'foo\\' }}""").render() == "foo\\"
+
+        # One backslash: the double quote is escaped.
+        assert env.from_string(r"""{{ "foo\"bar" }}""").render() == 'foo"bar'
+
+        # Two backslashes: the double quote closes the string.
+        assert env.from_string(r"""{{ "foo\\" }}""").render() == "foo\\"
 
     def test_bytefallback(self, env):
         from pprint import pformat
